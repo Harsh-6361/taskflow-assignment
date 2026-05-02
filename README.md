@@ -65,8 +65,9 @@ Once the database is seeded, you can log in immediately:
 TaskFlow is optimized for containerized deployment platforms like Railway. 
 
 When deploying:
-1. Ensure you attach a **Persistent Volume** to the backend service and mount it to `/app/prisma` to prevent SQLite data loss upon rebuilds.
-2. Provide the `VITE_API_URL` as a Build Argument for the frontend service to ensure the React application connects to your live backend domain.
+1. Ensure you attach a **Persistent Volume** to the backend service and mount it to `/app/data` to prevent SQLite data loss upon rebuilds.
+2. Set the `DATABASE_URL` to `file:/app/data/dev.db`.
+3. Provide the `VITE_API_URL` as a Build Argument for the frontend service to ensure the React application connects to your live backend domain.
 
 ## 📜 License
 

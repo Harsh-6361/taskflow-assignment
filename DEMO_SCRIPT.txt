@@ -1,0 +1,35 @@
+TASKFLOW DEMO VIDEO SCRIPT
+============================================================
+
+Total Duration: 2-5 Minutes
+
+Part 1: Intro (30 Seconds)
+------------------------------------------------------------
+Visual: Login screen visible.
+Speech: "Hi, my name is [Your Name], and I’m presenting TaskFlow—a full-stack team task management system. TaskFlow is designed to help teams stay organized with clear roles, project tracking, and interactive task boards. It’s built with React, Node.js, and uses SQLite for zero-config database persistence."
+
+Part 2: Authentication & Roles (45 Seconds)
+------------------------------------------------------------
+Visual: Login as admin@test.com.
+Speech: "I'll start by logging in as the Admin. The authentication is secured with JWT and bcrypt. Notice the modern, responsive UI built with Tailwind v4. The system supports three roles: Global Admin, Team Leader, and Member. Only Admins and Team Leaders can initiate new projects, mimicking a professional Jira-style workflow."
+
+Part 3: Dashboard & Projects (1 Minute)
+------------------------------------------------------------
+Visual: Dashboard overview, then click on Projects. Open 'New Project' modal.
+Speech: "This is the Dashboard. It gives me a high-level overview of my workload, including completion rates and overdue tasks. Let's go to the Projects section. Here I can see all active projects. I can create a new project instantly."
+
+Part 4: Task Management & Kanban (1 Minute)
+------------------------------------------------------------
+Visual: Click 'View Details' on a project. Add a task. Move a task status.
+Speech: "The Project Board features a Kanban system. I can add tasks with descriptions, priority levels, and due dates. Updating a task is as simple as a single click on the status badge. Notice how the stats at the top update in real-time. I can also manage the team here, inviting members by email."
+
+Part 5: Admin Features (45 Seconds)
+------------------------------------------------------------
+Visual: Scroll to bottom of Dashboard (System Administration). Then go to Users page.
+Speech: "Finally, as an Admin, I have access to unique analytics. At the bottom of my dashboard, I can see the live API Health and global network statistics. I also have a dedicated User Management page where I can oversee all registered users and manage their roles."
+
+Part 6: Conclusion (15 Seconds)
+------------------------------------------------------------
+Visual: Back to Dashboard or Logo.
+Speech: "The entire application is containerized with Docker and is currently live on Railway. Thank you for watching!"
+============================================================

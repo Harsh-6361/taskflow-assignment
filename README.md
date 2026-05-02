@@ -60,14 +60,24 @@ Once the database is seeded, you can log in immediately:
 - **Team Leader**: `lead@test.com` / `Password123!`
 - **Team Member**: `member@test.com` / `Password123!`
 
-## ☁️ Deployment
+## ☁️ Deployment (Railway)
 
-TaskFlow is optimized for containerized deployment platforms like Railway. 
+TaskFlow is optimized for Railway. Follow this checklist for a successful deployment:
 
-When deploying:
-1. Ensure you attach a **Persistent Volume** to the backend service and mount it to `/app/data` to prevent SQLite data loss upon rebuilds.
-2. Set the `DATABASE_URL` to `file:/app/data/dev.db`.
-3. Provide the `VITE_API_URL` as a Build Argument for the frontend service to ensure the React application connects to your live backend domain.
+### 1. Backend Service
+- **Root Directory**: `/backend`
+- **Variables**:
+  - `DATABASE_URL` = `file:/app/data/dev.db`
+  - `JWT_SECRET` = `(any random long string)`
+  - `PORT` = `5000`
+  - `NODE_ENV` = `production`
+- **Volume**: Create a volume and mount it to **`/app/data`**.
+
+### 2. Frontend Service
+- **Root Directory**: `/frontend`
+- **Variables**:
+  - `VITE_API_URL` = `https://your-backend-url.up.railway.app/api`
+- **Build Setting**: Ensure the `VITE_API_URL` is set before the build starts.
 
 ## 📜 License
 

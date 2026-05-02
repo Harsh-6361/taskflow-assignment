@@ -23,10 +23,14 @@ RUN npx prisma generate
 # Build the application
 RUN npm run build
 
+# Create data directory for SQLite volume
+RUN mkdir -p /app/data
+
 # Expose port
 EXPOSE 5000
 
-# Run migrations and start server
+# Run schema push and start server
+# Using -e to ensure environment variables are passed correctly
 CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]
 
 # For development, use:

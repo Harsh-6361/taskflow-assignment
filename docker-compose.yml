@@ -1,0 +1,39 @@
+services:
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: task-manager-backend
+    environment:
+      DATABASE_URL: "file:./prisma/dev.db"
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      NODE_ENV: production
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/prisma:/app/prisma
+    networks:
+      - task-manager-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:5000/api
+    container_name: task-manager-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - task-manager-network
+    restart: unless-stopped
+
+networks:
+  task-manager-network:
+    driver: bridge

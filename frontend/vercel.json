@@ -1,8 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://151.101.2.15/$1"
+      "source": "/api/:path*",
+      "destination": "https://taskflow-assignment-production.up.railway.app/api/:path*"
     }
   ]
 }

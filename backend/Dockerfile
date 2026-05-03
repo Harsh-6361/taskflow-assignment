@@ -1,8 +1,18 @@
 # Backend Dockerfile
+FROM node:20-alpine AS builder
+
+# Build frontend
+WORKDIR /app/frontend
+COPY ../frontend/package*.json ./
+RUN npm ci
+COPY ../frontend/ .
+RUN npm run build
+
+# Backend build
 FROM node:20-alpine
 
 # Install OpenSSL for Prisma
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl nginx
 
 # Set working directory
 WORKDIR /app
@@ -23,15 +33,17 @@ RUN npx prisma generate
 # Build the application
 RUN npm run build
 
+# Copy frontend build
+COPY --from=builder /app/frontend/dist /app/public
+
 # Create data directory for SQLite volume
 RUN mkdir -p /app/data
 
-# Expose port
-EXPOSE 5000
+# Expose ports
+EXPOSE 5000 80
 
-# Run schema push and start server
-# Using -e to ensure environment variables are passed correctly
-CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]
+# Run nginx to serve frontend + proxy to backend
+COPY nginx.railway.conf /etc/nginx/nginx.conf
 
-# For development, use:
-# CMD ["sh", "-c", "npx prisma migrate deploy && npm run dev"]
+# Run schema push and start nginx
+CMD ["sh", "-c", "npx prisma db push && nginx -g 'daemon off;' & node dist/index.js"]

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.app/railway.json",
+  "build": {
+    "builder": "NIXPACKS Builder",
+    "buildCommand": "npm run build",
+    "output": "dist"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyLimit": 5
+  }
+}

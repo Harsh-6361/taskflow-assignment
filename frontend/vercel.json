@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://taskflow-assignment-production.up.railway.app/api/$1" }
+    { "source": "/api/(.*)", "destination": "https://taskflow-assign.vercel.app/api/$1" }
   ]
 }

@@ -58,5 +58,5 @@ EXPOSE 5000 80
 # Run nginx to serve frontend + proxy to backend
 COPY backend/nginx.railway.conf /etc/nginx/nginx.conf
 
-# Start nginx and the backend app
-CMD ["sh", "-c", "nginx -g 'daemon off;' & node dist/index.js"]
+# Start nginx and the backend app (Backend forced to 5000 internally)
+CMD ["sh", "-c", "nginx -g 'daemon off;' & PORT=5000 node dist/index.js"]

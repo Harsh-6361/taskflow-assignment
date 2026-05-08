@@ -52,11 +52,8 @@ RUN npm run build
 # Copy frontend build from builder stage to backend's public folder
 COPY --from=builder /app/frontend/dist /app/public
 
-# Expose ports
-EXPOSE 5000 80
+# Expose port
+EXPOSE 80
 
-# Run nginx to serve frontend + proxy to backend
-COPY backend/nginx.railway.conf /etc/nginx/nginx.conf
-
-# Start nginx and the backend app (Backend forced to 5000 internally)
-CMD ["sh", "-c", "nginx -g 'daemon off;' & PORT=5000 node dist/index.js"]
+# Start only the backend app on port 80
+CMD ["node", "dist/index.js"]

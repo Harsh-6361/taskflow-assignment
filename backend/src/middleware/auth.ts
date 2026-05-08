@@ -1,25 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
+import { auth } from '../config/firebase';
 
 declare module 'express-serve-static-core' {
   interface Request {
     user?: {
-      userId: string;
+      uid: string;
+      email?: string;
+      role?: string;
     };
   }
 }
 
 /**
- * Middleware to authenticate JWT token
+ * Middleware to authenticate Firebase ID token
  * @param req - Express Request object
  * @param res - Express Response object
  * @param next - Express NextFunction
  */
-export const authenticateToken = (
+export const authenticateToken = async (
   req: Request,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
     
@@ -35,17 +37,23 @@ export const authenticateToken = (
       return;
     }
 
-    const decoded = verifyToken(token);
-    
-    if (!decoded) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
+    try {
+      const decodedToken = await auth.verifyIdToken(token);
+      
+      // Attach user to request object
+      // We map Firebase's 'uid' to what the app expects, or just use 'uid'
+      req.user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email,
+        role: (decodedToken.role as string) || 'MEMBER' // We'll handle roles via custom claims or Firestore
+      };
+      
+      next();
+    } catch (error) {
+      res.status(401).json({ error: 'Invalid or expired token' });
     }
-
-    // Attach user to request object
-    req.user = decoded;
-    next();
   } catch (error) {
+    console.error('Auth Middleware Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -1,11 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { db, auth } from '../config/firebase';
 import { z } from 'zod';
-import { hashPassword, comparePassword } from '../utils/password';
-import { generateToken } from '../utils/jwt';
 import { validate } from '../utils/validation';
-
-const prisma = new PrismaClient();
 
 // Zod schemas for validation
 const signupSchema = z.object({
@@ -14,29 +10,14 @@ const signupSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters long'),
 });
 
-const loginSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  password: z.string().min(1, 'Password is required'),
-});
-
 interface UserResponse {
   id: string;
   email: string;
   name: string;
   role: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: any;
+  updatedAt: any;
 }
-
-/**
- * Format user response without sensitive data
- * @param user - User object from database
- * @returns Formatted user object
- */
-const formatUserResponse = (user: any): UserResponse => {
-  const { password, ...userWithoutPassword } = user;
-  return userWithoutPassword;
-};
 
 /**
  * Signup a new user
@@ -54,87 +35,83 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
 
     const { name, email, password } = validation.data;
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    try {
+      // Create user in Firebase Auth
+      const userRecord = await auth.createUser({
+        email,
+        password,
+        displayName: name,
+      });
 
-    if (existingUser) {
-      res.status(409).json({ error: 'User with this email already exists' });
+      // Set custom claim for role
+      await auth.setCustomUserClaims(userRecord.uid, { role: 'MEMBER' });
+
+      // Create user document in Firestore
+      const userDoc = {
+        id: userRecord.uid,
+        email,
+        name,
+        role: 'MEMBER',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.collection('users').doc(userRecord.uid).set(userDoc);
+
+      res.status(201).json({
+        user: userDoc,
+        message: 'User created successfully'
+      });
+    } catch (firebaseError: any) {
+      console.error('Firebase Auth Error:', firebaseError);
+      if (firebaseError.code === 'auth/email-already-exists') {
+        res.status(409).json({ error: 'User with this email already exists' });
+        return;
+      }
+      if (firebaseError.code === 'auth/configuration-not-found') {
+        res.status(500).json({ error: 'Firebase Authentication is not enabled in the Firebase Console. Please go to your Firebase project and enable Email/Password Authentication.' });
+        return;
+      }
+      res.status(500).json({ error: firebaseError.message || 'Firebase initialization error' });
       return;
     }
-
-    // Hash password
-    const hashedPassword = await hashPassword(password);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: 'MEMBER', // Default role
-      },
-    });
-
-    // Generate JWT token
-    const token = generateToken(user.id);
-
-    // Return user and token
-    res.status(201).json({
-      user: formatUserResponse(user),
-      token,
-    });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Signup error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
 
 /**
- * Login user
- * @param req - Express Request
- * @param res - Express Response
+ * Login user (Verification only)
+ * Since Firebase handles login on the frontend, this endpoint validates the token
+ * and returns the user data from Firestore.
  */
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Validate request body
-    const validation = validate(loginSchema, req.body);
-    if (!validation.success || !validation.data) {
-      res.status(400).json({ error: validation.error });
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.status(401).json({ error: 'No token provided' });
       return;
     }
 
-    const { email, password } = validation.data;
+    const token = authHeader.split(' ')[1];
+    const decodedToken = await auth.verifyIdToken(token);
+    const uid = decodedToken.uid;
 
-    // Check if user exists
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (!user) {
-      res.status(401).json({ error: 'Invalid credentials' });
+    const userDoc = await db.collection('users').doc(uid).get();
+    
+    if (!userDoc.exists) {
+      res.status(404).json({ error: 'User not found in database' });
       return;
     }
 
-    // Compare password
-    const passwordMatch = await comparePassword(password, user.password);
-    if (!passwordMatch) {
-      res.status(401).json({ error: 'Invalid credentials' });
-      return;
-    }
-
-    // Generate JWT token
-    const token = generateToken(user.id);
-
-    // Return user and token
     res.status(200).json({
-      user: formatUserResponse(user),
+      user: userDoc.data(),
       token,
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(401).json({ error: 'Invalid token' });
   }
 };
 
@@ -145,25 +122,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
  */
 export const getCurrentUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Check if user is attached to request (from auth middleware)
     if (!req.user) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
-    });
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
 
-    if (!user) {
+    if (!userDoc.exists) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    // Return user details
     res.status(200).json({
-      user: formatUserResponse(user),
+      user: userDoc.data(),
     });
   } catch (error) {
     console.error('Get current user error:', error);

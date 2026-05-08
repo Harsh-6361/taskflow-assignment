@@ -1,46 +1,37 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { TaskStatus, Priority } from '../types/enums';
+import { db } from '../config/firebase';
+import { TaskStatus, Priority, Role } from '../types/enums';
 import { startOfWeek, endOfWeek } from 'date-fns';
-
-const prisma = new PrismaClient();
 
 /**
  * Get overall statistics for the current user
- * @route GET /api/dashboard/stats
- * @access Private
  */
 export const getStats = async (req: Request, res: Response): Promise<any> => {
-  const userId = req.user?.userId;
+  const userId = req.user?.uid;
 
   try {
     const now = new Date();
     const weekStart = startOfWeek(now);
     const weekEnd = endOfWeek(now);
 
-    // Get all tasks assigned to user
-    const userTasks = await prisma.task.findMany({
-      where: { assignedToId: userId },
-    });
+    const tasksSnap = await db.collection('tasks').where('assignedToId', '==', userId).get();
+    const userTasks = tasksSnap.docs.map(doc => doc.data());
 
     const totalTasks = userTasks.length;
     
     // Tasks by status
-    const statusCounts = userTasks.reduce((acc: any, task) => {
-      acc[task.status] = (acc[task.status] || 0) + 1;
-      return acc;
-    }, {});
-
-    // Ensure all statuses exist in the response
-    Object.values(TaskStatus).forEach(status => {
-      if (!statusCounts[status]) statusCounts[status] = 0;
+    const statusCounts: Record<string, number> = {};
+    Object.values(TaskStatus).forEach(status => statusCounts[status] = 0);
+    
+    userTasks.forEach((task: any) => {
+      statusCounts[task.status] = (statusCounts[task.status] || 0) + 1;
     });
 
     // Overdue tasks count
-    const overdueCount = userTasks.filter(task => 
+    const overdueCount = userTasks.filter((task: any) => 
       task.status !== TaskStatus.DONE && 
       task.dueDate && 
-      task.dueDate < now
+      new Date(task.dueDate).getTime() < now.getTime()
     ).length;
 
     // Completion percentage
@@ -50,10 +41,10 @@ export const getStats = async (req: Request, res: Response): Promise<any> => {
       : 0;
 
     // Tasks due this week
-    const dueThisWeekCount = userTasks.filter(task => 
+    const dueThisWeekCount = userTasks.filter((task: any) => 
       task.dueDate && 
-      task.dueDate >= weekStart && 
-      task.dueDate <= weekEnd
+      new Date(task.dueDate).getTime() >= weekStart.getTime() && 
+      new Date(task.dueDate).getTime() <= weekEnd.getTime()
     ).length;
 
     return res.json({
@@ -71,36 +62,39 @@ export const getStats = async (req: Request, res: Response): Promise<any> => {
 
 /**
  * Get all tasks assigned to current user grouped by status
- * @route GET /api/dashboard/my-tasks
- * @access Private
  */
 export const getMyTasks = async (req: Request, res: Response): Promise<any> => {
-  const userId = req.user?.userId;
+  const userId = req.user?.uid;
 
   try {
-    const tasks = await prisma.task.findMany({
-      where: { assignedToId: userId },
-      include: {
-        project: {
-          select: { id: true, name: true }
-        }
-      },
-      orderBy: [
-        { priority: 'desc' },
-        { dueDate: 'asc' }
-      ]
-    });
+    const tasksSnap = await db.collection('tasks')
+      .where('assignedToId', '==', userId)
+      .get();
+    
+    const tasks = await Promise.all(tasksSnap.docs.map(async (doc) => {
+      const data = doc.data();
+      const projectDoc = await db.collection('projects').doc(data.projectId).get();
+      return {
+        ...data,
+        project: projectDoc.data()
+      };
+    }));
 
     // Group by status
-    const groupedTasks = tasks.reduce((acc: any, task) => {
-      if (!acc[task.status]) acc[task.status] = [];
-      acc[task.status].push(task);
-      return acc;
-    }, {});
+    const groupedTasks: Record<string, any[]> = {};
+    Object.values(TaskStatus).forEach(status => groupedTasks[status] = []);
 
-    // Ensure all statuses exist
-    Object.values(TaskStatus).forEach(status => {
-      if (!groupedTasks[status]) groupedTasks[status] = [];
+    tasks.forEach((task: any) => {
+      if (!groupedTasks[task.status]) groupedTasks[task.status] = [];
+      groupedTasks[task.status].push(task);
+    });
+
+    // Sort within groups
+    Object.keys(groupedTasks).forEach(status => {
+      groupedTasks[status].sort((a: any, b: any) => {
+        // Simple priority/date sort
+        return new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime();
+      });
     });
 
     return res.json(groupedTasks);
@@ -112,27 +106,29 @@ export const getMyTasks = async (req: Request, res: Response): Promise<any> => {
 
 /**
  * Get all overdue tasks for user
- * @route GET /api/dashboard/overdue
- * @access Private
  */
 export const getOverdueTasks = async (req: Request, res: Response): Promise<any> => {
-  const userId = req.user?.userId;
-  const now = new Date();
+  const userId = req.user?.uid;
+  const now = new Date().toISOString();
 
   try {
-    const overdueTasks = await prisma.task.findMany({
-      where: {
-        assignedToId: userId,
-        status: { not: TaskStatus.DONE },
-        dueDate: { lt: now }
-      },
-      include: {
-        project: {
-          select: { id: true, name: true }
-        }
-      },
-      orderBy: { dueDate: 'asc' }
-    });
+    const tasksSnap = await db.collection('tasks')
+      .where('assignedToId', '==', userId)
+      .where('status', '!=', TaskStatus.DONE)
+      .get();
+    
+    let overdueTasks = await Promise.all(tasksSnap.docs.map(async (doc) => {
+      const data = doc.data();
+      const projectDoc = await db.collection('projects').doc(data.projectId).get();
+      return {
+        ...data,
+        project: projectDoc.data()
+      };
+    }));
+
+    // Filter by date manually because Firestore doesn't allow != and < on different fields easily without index
+    overdueTasks = overdueTasks.filter((t: any) => t.dueDate && t.dueDate < now);
+    overdueTasks.sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
     return res.json(overdueTasks);
   } catch (error) {
@@ -143,66 +139,52 @@ export const getOverdueTasks = async (req: Request, res: Response): Promise<any>
 
 /**
  * Get statistics for a specific project
- * @route GET /api/dashboard/projects/:id/stats
- * @access Private (Project member only)
  */
 export const getProjectStats = async (req: Request, res: Response): Promise<any> => {
   const { id } = req.params;
-  const userId = req.user?.userId;
-
-  if (!id || typeof id !== 'string') {
-    return res.status(400).json({ error: 'Invalid project ID' });
-  }
+  const userId = req.user?.uid;
 
   try {
-    // Check project membership
-    const member = await prisma.projectMember.findUnique({
-      where: {
-        projectId_userId: {
-          projectId: id,
-          userId: userId as string
-        }
-      }
-    });
-
-    if (!member) {
+    const memberDoc = await db.collection('projectMembers').doc(`${id}_${userId}`).get();
+    if (!memberDoc.exists) {
       return res.status(403).json({ error: 'Access denied: You are not a member of this project' });
     }
 
-    const tasks = await prisma.task.findMany({
-      where: { projectId: id },
-      include: {
-        assignedTo: {
-          select: { id: true, name: true }
-        }
-      }
-    });
+    const tasksSnap = await db.collection('tasks').where('projectId', '==', id).get();
+    const tasks = await Promise.all(tasksSnap.docs.map(async (tDoc) => {
+      const data = tDoc.data();
+      const assignedDoc = data.assignedToId ? await db.collection('users').doc(data.assignedToId).get() : null;
+      return {
+        ...data,
+        assignedTo: assignedDoc ? assignedDoc.data() : null
+      };
+    }));
 
     const totalTasks = tasks.length;
 
     // Tasks by status
-    const statusCounts = tasks.reduce((acc: any, task) => {
-      acc[task.status] = (acc[task.status] || 0) + 1;
-      return acc;
-    }, {});
+    const statusCounts: Record<string, number> = {};
+    tasks.forEach((task: any) => {
+      statusCounts[task.status] = (statusCounts[task.status] || 0) + 1;
+    });
 
     // Tasks by priority
-    const priorityCounts = tasks.reduce((acc: any, task) => {
-      acc[task.priority] = (acc[task.priority] || 0) + 1;
-      return acc;
-    }, {});
+    const priorityCounts: Record<string, number> = {};
+    tasks.forEach((task: any) => {
+      priorityCounts[task.priority] = (priorityCounts[task.priority] || 0) + 1;
+    });
 
     // Member task distribution
-    const memberDistribution = tasks.reduce((acc: any, task: any) => {
+    const memberDistribution: Record<string, { name: string; count: number }> = {};
+    tasks.forEach((task: any) => {
       const memberId = task.assignedToId || 'unassigned';
       const name = task.assignedTo?.name || 'Unassigned';
       
-      if (!acc[memberId]) {
-        acc[memberId] = { name, count: 0 };
+      if (!memberDistribution[memberId]) {
+        memberDistribution[memberId] = { name, count: 0 };
       }
-      acc[memberId].count += 1;
-      return acc;
-    }, {});
+      memberDistribution[memberId].count += 1;
+    });
 
     // Completion rate
     const completedCount = statusCounts[TaskStatus.DONE] || 0;
@@ -225,53 +207,49 @@ export const getProjectStats = async (req: Request, res: Response): Promise<any>
 
 /**
  * Get global statistics for system administrators
- * @route GET /api/dashboard/admin/stats
- * @access Private (ADMIN only)
  */
 export const getAdminStats = async (req: Request, res: Response): Promise<any> => {
-  const userId = req.user?.userId;
+  const userId = req.user?.uid;
 
   try {
-    // Verify user is a global ADMIN
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user || user.role !== 'ADMIN') {
+    const userDoc = await db.collection('users').doc(userId as string).get();
+    if (userDoc.data()?.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Access denied: Admin permissions required' });
     }
 
-    const [totalUsers, totalProjects, totalTasks, tasksByStatus] = await Promise.all([
-      prisma.user.count(),
-      prisma.project.count(),
-      prisma.task.count(),
-      prisma.task.groupBy({
-        by: ['status'],
-        _count: true,
-      }),
+    const [usersCount, projectsCount, tasksCount, tasksSnap] = await Promise.all([
+      db.collection('users').count().get(),
+      db.collection('projects').count().get(),
+      db.collection('tasks').count().get(),
+      db.collection('tasks').get(),
     ]);
 
     // Format task counts
-    const statusDistribution = tasksByStatus.reduce((acc: any, curr) => {
-      acc[curr.status] = curr._count;
-      return acc;
-    }, {});
-
-    // Get recent activity (last 5 projects)
-    const recentProjects = await prisma.project.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        owner: {
-          select: { name: true }
-        }
-      }
+    const statusDistribution: Record<string, number> = {};
+    tasksSnap.docs.forEach(doc => {
+      const status = doc.data().status;
+      statusDistribution[status] = (statusDistribution[status] || 0) + 1;
     });
 
+    // Get recent activity (last 5 projects)
+    const recentProjectsSnap = await db.collection('projects')
+      .orderBy('createdAt', 'desc')
+      .limit(5)
+      .get();
+    
+    const recentProjects = await Promise.all(recentProjectsSnap.docs.map(async (doc) => {
+      const data = doc.data();
+      const ownerDoc = await db.collection('users').doc(data.ownerId).get();
+      return {
+        ...data,
+        owner: ownerDoc.data()
+      };
+    }));
+
     return res.json({
-      totalUsers,
-      totalProjects,
-      totalTasks,
+      totalUsers: usersCount.data().count,
+      totalProjects: projectsCount.data().count,
+      totalTasks: tasksCount.data().count,
       statusDistribution,
       recentProjects,
       systemHealth: {

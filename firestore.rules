@@ -1,0 +1,40 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is an admin (requires custom claims or doc check)
+    // Since we use custom claims for role, we check the token
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'ADMIN';
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // Projects
+    match /projects/{projectId} {
+      allow read: if isAuthenticated(); // More complex: check if user is in projectMembers
+      allow write: if isAdmin() || isAuthenticated(); // Backend handles logic
+    }
+
+    // Project Members
+    match /projectMembers/{memberId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isAuthenticated(); // Backend handles logic
+    }
+
+    // Tasks
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isAuthenticated(); // Backend handles logic
+    }
+  }
+}

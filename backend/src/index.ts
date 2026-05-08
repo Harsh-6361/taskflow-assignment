@@ -55,8 +55,8 @@ app.use('/api/users', userRoutes);
 
 // Start server
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => {
-    console.log(`[server]: Server is running at http://localhost:${port}`);
+  app.listen(Number(port), '0.0.0.0', () => {
+    console.log(`[server]: Server is running at http://0.0.0.0:${port}`);
   });
 }
 

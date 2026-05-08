@@ -1,83 +1,55 @@
-# TaskFlow - Team Task Management Platform
+# TaskFlow - Team Task Management Platform (Firebase Edition)
 
 TaskFlow is a comprehensive, full-stack web application designed for teams to organize projects, manage tasks, and track overall progress efficiently. It features a modern UI, role-based access control, and real-time dashboard analytics.
 
 ## ✨ Key Features
 
-- **Robust Authentication**: Secure signup and login flows powered by JWT and bcrypt.
+- **Robust Authentication**: Powered by **Firebase Authentication** for secure and scalable user management.
 - **Hierarchical Access Control**: 
   - `ADMIN`: Global control over all projects, users, and system analytics.
   - `TEAM_LEADER`: Ability to create projects and manage their assigned teams.
   - `MEMBER`: View assigned tasks and collaborate within project spaces.
 - **Project Organization**: Create detailed project workspaces with descriptions, status tracking, and member management.
-- **Interactive Task Boards**: Kanban-style task views with one-click status updates (Todo, In Progress, Review, Done).
+- **Interactive Task Boards**: Kanban-style task views with one-click status updates.
 - **Advanced Dashboard**:
   - Personal workload overview and overdue task alerts.
   - Interactive "My Tasks" feed.
   - System-wide network health and activity tracking (Admin only).
-- **Zero-Config Database**: Powered by SQLite for instant local setup and easy portability.
+- **Scalable Database**: Powered by **Google Cloud Firestore** for high-performance, real-time data synchronization.
 
 ## 🏗️ Architecture
 
-The project is structured as a monorepo containing two main parts:
+The project is structured as a monorepo:
 
-1. **`/frontend`**: A React application built with Vite, TypeScript, and Tailwind CSS v4.
-2. **`/backend`**: An Express.js API powered by Node.js, TypeScript, and Prisma ORM.
-
-For detailed instructions on each component, refer to their respective READMEs:
-- [Frontend README](./frontend/README.md)
-- [Backend README](./backend/README.md)
+1. **`/frontend`**: React application built with Vite, TypeScript, and Tailwind CSS.
+2. **`/backend`**: Express.js API powered by Node.js, TypeScript, and Firebase Admin SDK.
 
 ## 🚀 Quick Start (Docker)
 
-The easiest way to run TaskFlow is using Docker Compose. This single command will build and orchestrate both the frontend and backend services, including the SQLite database volume.
-
-### Prerequisites
-- Docker
-- Docker Compose
-
-### 1. Build and Run
-From the root of the repository, execute:
+1. Create a `.env` file in the root with your Firebase credentials (see `.env.example`).
+2. Build and orchestrate:
 ```bash
 docker-compose up -d --build
 ```
 
-### 2. Seed the Database
-To create the initial test accounts, run the seed script inside the running backend container:
-```bash
-docker-compose exec backend npx ts-node prisma/seed.ts
-```
+## ☁️ Deployment
 
-### 3. Access the Application
-- **Frontend UI**: [http://localhost](http://localhost)
-- **Backend API**: [http://localhost:5000](http://localhost:5000)
-
-## 🔑 Test Credentials
-
-Once the database is seeded, you can log in immediately:
-
-- **Admin Account**: `admin@test.com` / `Password123!`
-- **Team Leader**: `lead@test.com` / `Password123!`
-- **Team Member**: `member@test.com` / `Password123!`
-
-## ☁️ Deployment (Railway)
-
-TaskFlow is optimized for Railway. Follow this checklist for a successful deployment:
-
-### 1. Backend Service
+### 1. Backend (Railway/Docker)
 - **Root Directory**: `/backend`
 - **Variables**:
-  - `DATABASE_URL` = `file:/app/data/dev.db`
-  - `JWT_SECRET` = `(any random long string)`
-  - `PORT` = `5000`
-  - `NODE_ENV` = `production`
-- **Volume**: Create a volume and mount it to **`/app/data`**.
+  - `FIREBASE_SERVICE_ACCOUNT_JSON`: Raw JSON string of your service account key.
+  - `PORT`: `5000`
+  - `NODE_ENV`: `production`
 
-### 2. Frontend Service
-- **Root Directory**: `/frontend`
+### 2. Frontend (Vercel/Vite)
 - **Variables**:
-  - `VITE_API_URL` = `https://your-backend-url.up.railway.app/api`
-- **Build Setting**: Ensure the `VITE_API_URL` is set before the build starts.
+  - `VITE_API_URL`: Your backend URL.
+  - `VITE_FIREBASE_API_KEY`: ...
+  - `VITE_FIREBASE_AUTH_DOMAIN`: ...
+  - `VITE_FIREBASE_PROJECT_ID`: ...
+  - `VITE_FIREBASE_STORAGE_BUCKET`: ...
+  - `VITE_FIREBASE_MESSAGING_SENDER_ID`: ...
+  - `VITE_FIREBASE_APP_ID`: ...
 
 ## 📜 License
 

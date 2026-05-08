@@ -1,6 +1,7 @@
 import express, { Express, Request, Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import path from 'path';
 import authRoutes from './routes/authRoutes';
 import projectRoutes from './routes/projectRoutes';
 import taskRoutes from './routes/taskRoutes';
@@ -15,7 +16,7 @@ const port = process.env.PORT || 80;
 
 // Middleware
 app.use(cors({
-  origin: '*', // Allow all origins for split deployment (Vercel + Railway)
+  origin: '*', 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -26,20 +27,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
-});
-
-// Routes
-app.get('/', (req: Request, res: Response) => {
-  res.send('Task Manager API is running!');
-});
-
-// Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'OK',
-    message: 'Task Manager API is healthy',
-    timestamp: new Date().toISOString()
-  });
 });
 
 // Authentication routes
@@ -57,10 +44,34 @@ app.use('/api/dashboard', dashboardRoutes);
 // User routes
 app.use('/api/users', userRoutes);
 
+// Static file serving for Frontend
+const publicPath = path.join(__dirname, '../public');
+app.use(express.static(publicPath));
+
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Task Manager API is healthy',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Catch-all route to serve React's index.html (SPA Routing)
+app.get('*', (req: Request, res: Response) => {
+  // Only serve index.html if it's not an API call
+  if (!req.url.startsWith('/api')) {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  } else {
+    res.status(404).json({ error: 'API endpoint not found' });
+  }
+});
+
 // Start server
 if (process.env.NODE_ENV !== 'test') {
   app.listen(Number(port), '0.0.0.0', () => {
     console.log(`[server]: Server is running at http://0.0.0.0:${port}`);
+    console.log(`[server]: Serving frontend from ${publicPath}`);
   });
 }
 

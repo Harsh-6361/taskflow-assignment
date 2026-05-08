@@ -3,11 +3,12 @@ FROM node:20-alpine AS builder
 
 # Build frontend
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
+# Note: Since the context is /backend, we need to go up one level for frontend
+COPY ../frontend/package*.json ./
 RUN npm ci
-COPY frontend/ .
+COPY ../frontend/ .
 
-# Pass build args if needed during this combined build
+# Pass build args
 ARG VITE_API_URL
 ARG VITE_FIREBASE_API_KEY
 ARG VITE_FIREBASE_AUTH_DOMAIN
@@ -37,14 +38,14 @@ RUN apk add --no-cache nginx
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY backend/package*.json ./
+# Copy package files (already in root /backend)
+COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy application code
-COPY backend/ .
+COPY . .
 
 # Build the application
 RUN npm run build
@@ -56,7 +57,8 @@ COPY --from=builder /app/frontend/dist /app/public
 EXPOSE 5000 80
 
 # Run nginx to serve frontend + proxy to backend
-COPY backend/nginx.railway.conf /etc/nginx/nginx.conf
+# Note: path is now just nginx.railway.conf
+COPY nginx.railway.conf /etc/nginx/nginx.conf
 
 # Start nginx and the app
 CMD ["sh", "-c", "nginx -g 'daemon off;' & node dist/index.js"]

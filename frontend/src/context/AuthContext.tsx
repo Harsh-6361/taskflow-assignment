@@ -50,10 +50,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(user);
   };
 
-  const logout = () => {
-    authService.logout();
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setToken(null);
+      setUser(null);
+    }
   };
 
   return (
